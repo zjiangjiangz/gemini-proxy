@@ -1,7 +1,7 @@
 export async function onRequest(context) {
   const GEMINI_API_KEY = context.env.GEMINI_API_KEY;
 
-  if (context.请求.method === 'OPTIONS') {
+  if (context.request.method === 'OPTIONS') {
     return new Response(null, {
       headers: {
         'Access-Control-Allow-Origin': '*',
@@ -11,15 +11,15 @@ export async function onRequest(context) {
     });
   }
 
-  if (context.请求.method !== 'POST') {
-    return new Response(JSON.stringify({ error: '只支持POST请求' }), {
+  if (context.request.method !== 'POST') {
+    return new Response(JSON.stringify({ error: 'Method not allowed' }), {
       status: 405,
       headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' }
     });
   }
 
   try {
-    const requestBody = await context.请求.json();
+    const requestBody = await context.request.json();
     const model = requestBody.model || 'gemini-1.5-flash';
     const googleUrl = 'https://generativelanguage.googleapis.com/v1beta/models/' + model + ':generateContent?key=' + GEMINI_API_KEY;
 
@@ -48,7 +48,7 @@ export async function onRequest(context) {
 
     if (!response.ok) {
       const errorText = await response.text();
-      return new Response(JSON.stringify({ error: 'Google API错误', details: errorText }), {
+      return new Response(JSON.stringify({ error: 'Google API error', details: errorText }), {
         status: response.status,
         headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' }
       });
@@ -102,7 +102,7 @@ export async function onRequest(context) {
     });
 
   } catch (error) {
-    return new Response(JSON.stringify({ error: '内部服务器错误', message: error.message }), {
+    return new Response(JSON.stringify({ error: 'Internal server error', message: error.message }), {
       status: 500,
       headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' }
     });
