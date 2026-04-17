@@ -20,7 +20,7 @@ export async function onRequest(context) {
 
   try {
     const requestBody = await context.request.json();
-    const model = requestBody.model || 'gemini-1.5-flash';
+    const model = requestBody.model || 'gemini-2.0-flash';
     const googleUrl = 'https://generativelanguage.googleapis.com/v1beta/models/' + model + ':generateContent?key=' + GEMINI_API_KEY;
 
     const messages = requestBody.messages || [];
