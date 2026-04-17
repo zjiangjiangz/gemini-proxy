@@ -11,20 +11,32 @@ export async function onRequest(context) {
     });
   }
 
+  if (context.请求.method !== 'POST') {
+    return new Response(JSON.stringify({ error: '只支持POST请求' }), {
+      status: 405,
+      headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' }
+    });
+  }
+
   try {
     const requestBody = await context.请求.json();
     const model = requestBody.model || 'gemini-1.5-flash';
-    const googleUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${GEMINI_API_KEY}`;
+    const googleUrl = 'https://generativelanguage.googleapis.com/v1beta/models/' + model + ':generateContent?key=' + GEMINI_API_KEY;
 
-    const googleRequestBody = {
-      contents: requestBody.messages ? requestBody.messages.map(msg => ({
+    const messages = requestBody.messages || [];
+    const contents = messages.map(function(msg) {
+      return {
         role: msg.role === 'assistant' ? 'model' : 'user',
         parts: [{ text: msg.content }]
-      })) : requestBody.contents,
+      };
+    });
+
+    const googleRequestBody = {
+      contents: contents,
       generationConfig: {
         temperature: requestBody.temperature || 0.7,
         topP: requestBody.top_p || 0.9,
-        maxOutputTokens: requestBody.max_tokens || 2048,
+        maxOutputTokens: requestBody.max_tokens || 2048
       }
     };
 
@@ -36,16 +48,34 @@ export async function onRequest(context) {
 
     if (!response.ok) {
       const errorText = await response.text();
-      return new Response(JSON.stringify({ error: `Google API错误: ${response.status}`, details: errorText }), {
+      return new Response(JSON.stringify({ error: 'Google API错误', details: errorText }), {
         status: response.status,
         headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' }
       });
     }
 
     const data = await response.json();
+    var textContent = '';
+    if (data.candidates && data.candidates.length > 0 && data.candidates[0].content && data.candidates[0].content.parts && data.candidates[0].content.parts.length > 0) {
+      textContent = data.candidates[0].content.parts[0].text || '';
+    }
+
+    var finishReason = 'stop';
+    if (data.candidates && data.candidates.length > 0) {
+      finishReason = data.candidates[0].finishReason || 'stop';
+    }
+
+    var promptTokens = 0;
+    var completionTokens = 0;
+    var totalTokens = 0;
+    if (data.usageMetadata) {
+      promptTokens = data.usageMetadata.promptTokenCount || 0;
+      completionTokens = data.usageMetadata.candidatesTokenCount || 0;
+      totalTokens = data.usageMetadata.totalTokenCount || 0;
+    }
 
     const openAIFormat = {
-      id: `chatcmpl-${Date.now()}`,
+      id: 'chatcmpl-' + Date.now(),
       object: 'chat.completion',
       created: Math.floor(Date.now() / 1000),
       model: model,
@@ -53,14 +83,14 @@ export async function onRequest(context) {
         index: 0,
         message: {
           role: 'assistant',
-          content: data.candidates?.[0]?.content?.parts?.[0]?.text || ''
+          content: textContent
         },
-        finish_reason: data.candidates?.[0]?.finishReason || 'stop'
+        finish_reason: finishReason
       }],
       usage: {
-        prompt_tokens: data.usageMetadata?.promptTokenCount || 0,
-        completion_tokens: data.usageMetadata?.candidatesTokenCount || 0,
-        total_tokens: data.usageMetadata?.totalTokenCount || 0
+        prompt_tokens: promptTokens,
+        completion_tokens: completionTokens,
+        total_tokens: totalTokens
       }
     };
 
